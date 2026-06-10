@@ -1,10 +1,7 @@
 name: Build Android APK
-
 on:
-  push:
-    branches: [ main ]
+  push: { branches: [main] }
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -12,23 +9,26 @@ jobs:
     - uses: actions/checkout@v4
     - name: Set up JDK 17
       uses: actions/setup-java@v3
-      with:
-        java-version: '17'
-        distribution: 'temurin'
+      with: { java-version: '17', distribution: 'temurin' }
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
-    - name: Grant execute permission for gradlew
+    - name: List files for debugging
+      run: |
+        ls -la
+        ls -la app/ || true
+        ls -la gradle/wrapper/ || true
+    - name: Make gradlew executable
       run: chmod +x gradlew
-    - name: Build APK
-      run: ./gradlew assembleRelease
-    - name: Sign APK (debug)
+    - name: Build APK with stacktrace
+      run: ./gradlew assembleRelease --stacktrace
+    - name: Sign APK
       run: |
         cd app/build/outputs/apk/release
         keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -dname "CN=Debug, OU=Debug, O=Debug, L=Debug, ST=Debug, C=US" -validity 10000
         jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore debug.keystore -storepass android app-release-unsigned.apk androiddebugkey
         $ANDROID_HOME/build-tools/34.0.0/zipalign -v -p 4 app-release-unsigned.apk app-release.apk
     - name: Upload APK
-      uses: actions/upload-artifact@v4   # Changed from v3 to v4
+      uses: actions/upload-artifact@v4
       with:
         name: RiqelCyberTool-release
         path: app/build/outputs/apk/release/app-release.apk
