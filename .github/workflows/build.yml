@@ -17,16 +17,27 @@ jobs:
         distribution: 'temurin'
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
+    - name: Create gradle wrapper
+      run: |
+        mkdir -p gradle/wrapper
+        echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
+        echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+        echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
+        echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
+        echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+        curl -L -o gradlew https://raw.githubusercontent.com/gradle/gradle/v8.0.0/gradlew
+        chmod +x gradlew
     - name: Build APK
       run: |
-        chmod +x gradlew
+        # Move android_app contents to root for simpler build
+        cp -r android_app/* .
         ./gradlew assembleRelease
-    - name: Sign APK (debug key for demo)
+    - name: Sign APK (debug)
       run: |
         cd app/build/outputs/apk/release
         keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -dname "CN=Debug, OU=Debug, O=Debug, L=Debug, ST=Debug, C=US" -validity 10000
         jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore debug.keystore -storepass android app-release-unsigned.apk androiddebugkey
-        $ANDROID_HOME/build-tools/30.0.3/zipalign -v -p 4 app-release-unsigned.apk app-release.apk
+        $ANDROID_HOME/build-tools/34.0.0/zipalign -v -p 4 app-release-unsigned.apk app-release.apk
     - name: Upload APK
       uses: actions/upload-artifact@v3
       with:
