@@ -17,21 +17,10 @@ jobs:
         distribution: 'temurin'
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
-    - name: Create gradle wrapper
-      run: |
-        mkdir -p gradle/wrapper
-        echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
-        echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-        echo "distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
-        echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
-        echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-        curl -L -o gradlew https://raw.githubusercontent.com/gradle/gradle/v8.0.0/gradlew
-        chmod +x gradlew
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
     - name: Build APK
-      run: |
-        # Move android_app contents to root for simpler build
-        cp -r android_app/* .
-        ./gradlew assembleRelease
+      run: ./gradlew assembleRelease
     - name: Sign APK (debug)
       run: |
         cd app/build/outputs/apk/release
