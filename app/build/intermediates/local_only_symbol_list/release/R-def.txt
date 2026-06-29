@@ -1,0 +1,12 @@
+R_DEF: Internal format may change without notice
+local
+color purple_200
+color purple_500
+drawable ic_launcher_foreground
+id btnRequestPermissions
+layout activity_main
+mipmap ic_launcher
+mipmap ic_launcher_round
+string app_name
+style AppTheme
+xml device_admin

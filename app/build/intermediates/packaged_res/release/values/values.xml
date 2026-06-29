@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <string name="app_name">RiqelCyberTool</string>
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar"/>
+</resources>
